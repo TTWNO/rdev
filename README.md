@@ -1,4 +1,4 @@
-# odilia-input
+# For Odilia Prototype
 
 We are trying to do 2 things here:
 
