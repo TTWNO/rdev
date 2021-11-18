@@ -7,6 +7,8 @@ We are trying to do 2 things here:
 
 2 may become a seperate library to avoid overlapping of concerns.
 
+Inspiration is from the `keyboard` python module found here: [https://github.com/boppreh/keyboard](https://github.com/boppreh/keyboard)
+
 The notes below are for the original rdev crate:
 
 # rdev
