@@ -325,13 +325,13 @@ pub fn display_size() -> Result<(u64, u64), DisplayError> {
 #[cfg(target_os = "linux")]
 pub use crate::linux::grab as _grab;
 pub use crate::linux::grab_async as _grab_async;
-use std::future::Future;
 #[cfg(feature = "unstable_grab")]
 #[cfg(target_os = "macos")]
 pub use crate::macos::grab as _grab;
 #[cfg(feature = "unstable_grab")]
 #[cfg(target_os = "windows")]
 pub use crate::windows::grab as _grab;
+use std::future::Future;
 #[cfg(any(feature = "unstable_grab"))]
 /// Grabbing global events. In the callback, returning None ignores the event
 /// and returning the event let's it pass. There is no modification of the event
@@ -368,8 +368,8 @@ where
 
 pub async fn grab_async<T, F>(callback: F) -> Result<(), GrabError>
 where
-  F: Fn(Event) -> T + Send + 'static,
-  T: Future<Output=Option<Event>> + Send + 'static,
+    F: Fn(Event) -> T + Send + 'static,
+    T: Future<Output = Option<Event>> + Send + 'static,
 {
     _grab_async(callback).await
 }
