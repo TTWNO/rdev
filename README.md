@@ -1,6 +1,15 @@
-![](https://github.com/Narsil/rdev/workflows/build/badge.svg)
-[![Crate](https://img.shields.io/crates/v/rdev.svg)](https://crates.io/crates/rdev)
-[![API](https://docs.rs/rdev/badge.svg)](https://docs.rs/rdev)
+# For Odilia Prototype
+
+We are trying to do 2 things here:
+
+1. Make rdev async.
+2. Have emacs-style key event grabbers (i.e. "ctrl+shift+e, s")
+
+2 may become a seperate library to avoid overlapping of concerns.
+
+Inspiration is from the `keyboard` python module found here: [https://github.com/boppreh/keyboard](https://github.com/boppreh/keyboard)
+
+The notes below are for the original rdev crate:
 
 # rdev
 
