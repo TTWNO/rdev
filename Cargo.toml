@@ -34,7 +34,7 @@ x11 = {version = "2.18", features = ["xlib", "xrecord", "xinput"]}
 evdev-rs = {version = "0.4.0", optional=true}
 epoll = {version = "4.1.0", optional=true}
 inotify = {version = "0.8.2", default-features=false, optional=true}
-tokio = {version = "1.14.0", features = ["rt"]}
+tokio = {version = "1.14.0", features = ["rt", "rt-multi-thread"]}
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["winuser", "errhandlingapi", "processthreadsapi"] }
