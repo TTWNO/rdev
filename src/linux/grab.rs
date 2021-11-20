@@ -1,3 +1,11 @@
+use std::future::Future;
+use std::{
+  thread,
+};
+use tokio::{
+  runtime::Runtime,
+};
+
 use crate::linux::common::Display;
 use crate::linux::keyboard::Keyboard;
 use crate::rdev::{Button, Event, EventType, GrabError, Key, KeyboardState};
@@ -301,6 +309,112 @@ fn evdev_event_to_rdev_event(
 //     }
 // }
 
+async fn get_callback_ret<F, T>(callback: &F, kb: &mut Keyboard, event: InputEvent, event_type: Option<EventType>) -> (Option<InputEvent>, GrabStatus)
+where
+  F: Fn(Event) -> T + Send + 'static,
+  T: Future<Output=Option<Event>> + Send + 'static,
+{
+    if event_type.is_none() {
+      return (Some(event), GrabStatus::Continue);
+    }
+    // won't fail due to check at beginning of func
+    let event_type_unr = event_type.unwrap();
+    let name = kb.add(&event_type_unr);
+    let rdev_event = Event {
+        time: SystemTime::now(),
+        name,
+        event_type: event_type_unr,
+    };
+    if callback(rdev_event).await.is_some() {
+        (Some(event), GrabStatus::Continue)
+    } else {
+        // callback returns None, swallow the event
+        (None, GrabStatus::Continue)
+    }
+}
+
+pub async fn grab_async<F, T>(callback: F) -> Result<(), GrabError>
+where
+  F: Fn(Event) -> T + Send + 'static,
+  T: Future<Output=Option<Event>> + Send + 'static,
+{
+    let rt = Runtime::new().unwrap();
+
+    thread::spawn(move || {
+      let mut inotify_buffer = vec![0_u8; 4096];
+      let mut kb = Keyboard::new().ok_or(GrabError::KeyboardError).unwrap();
+      let display = Display::new().ok_or(GrabError::MissingDisplayError).unwrap();
+      let (width, height) = display.get_size().ok_or(GrabError::MissingDisplayError).unwrap();
+      let (current_x, current_y) = display
+          .get_mouse_pos()
+          .ok_or(GrabError::MissingDisplayError).unwrap();
+      let mut x = current_x as f64;
+      let mut y = current_y as f64;
+      let w = width as f64;
+      let h = height as f64;
+      let (epoll_fd, mut devices, output_devices) = setup_devices().unwrap();
+      let mut inotify = setup_inotify(epoll_fd, &devices).unwrap();
+
+      //grab devices
+      let _grab = devices
+          .iter_mut()
+          .try_for_each(|device| device.grab(evdev_rs::GrabMode::Grab)).unwrap();
+
+
+      let mut epoll_buffer = [epoll::Event::new(epoll::Events::empty(), 0); 4];
+      'main_loop: loop {
+        let num_events = epoll::wait(epoll_fd, -1, &mut epoll_buffer).unwrap();
+        'event_loop: for i in 0..num_events {
+          let event = epoll_buffer[i];
+          // new device file created
+          if event.data == INOTIFY_DATA {
+              for event in inotify.read_events(&mut inotify_buffer).unwrap() {
+                  assert!(
+                      event.mask.contains(inotify::EventMask::CREATE),
+                      "inotify is listening for events other than file creation"
+                  );
+                  add_device_to_epoll_from_inotify_event(epoll_fd, event, &mut devices).unwrap();
+              }
+          } else {
+              // Input device recieved event
+              let device_idx = usize::from(event.data as usize);
+              let device = devices.get(device_idx).unwrap();
+              while device.has_event_pending() {
+                  //TODO: deal with EV_SYN::SYN_DROPPED
+                  let (_, event) = match device.next_event(evdev_rs::ReadFlag::NORMAL) {
+                      Ok(event) => event,
+                      Err(_) => {
+                          let device_fd = device.fd().unwrap().into_raw_fd();
+                          let empty_event = epoll::Event::new(epoll::Events::empty(), 0);
+                          epoll::ctl(epoll_fd, EPOLL_CTL_DEL, device_fd, empty_event).unwrap();
+                          continue 'event_loop;
+                      }
+                  };
+                  let event_type = evdev_event_to_rdev_event(&event, &mut x, &mut y, w, h);
+                  let (event, grab_status) = rt.block_on(async {
+                    get_callback_ret(&callback, &mut kb, event, event_type).await
+                  });
+                  if let (Some(event), Some(out_device)) = (event, output_devices.get(device_idx)){
+                      out_device.write_event(&event).unwrap();
+                  }
+                if grab_status == GrabStatus::Stop {
+                  break 'main_loop;
+                }
+              }
+         }
+        }
+      }
+      for device in devices.iter_mut() {
+          //ungrab devices, ignore errors
+          device.grab(evdev_rs::GrabMode::Ungrab).ok();
+      }
+      epoll::close(epoll_fd).unwrap();
+    });
+
+    Ok(())
+}
+
+
 pub fn grab<T>(callback: T) -> Result<(), GrabError>
 where
     T: Fn(Event) -> Option<Event> + 'static,
@@ -353,7 +467,9 @@ where
     let mut epoll_buffer = [epoll::Event::new(epoll::Events::empty(), 0); 4];
     let mut inotify_buffer = vec![0_u8; 4096];
     'event_loop: loop {
+        println!("FD: {}", epoll_fd);
         let num_events = epoll::wait(epoll_fd, -1, &mut epoll_buffer)?;
+        println!("NUM_EVT: {}", num_events);
 
         //map and simulate events, dealing with
         'events: for event in &epoll_buffer[0..num_events] {

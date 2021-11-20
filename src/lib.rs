@@ -324,6 +324,8 @@ pub fn display_size() -> Result<(u64, u64), DisplayError> {
 #[cfg(feature = "unstable_grab")]
 #[cfg(target_os = "linux")]
 pub use crate::linux::grab as _grab;
+pub use crate::linux::grab_async as _grab_async;
+use std::future::Future;
 #[cfg(feature = "unstable_grab")]
 #[cfg(target_os = "macos")]
 pub use crate::macos::grab as _grab;
@@ -362,6 +364,14 @@ where
     T: Fn(Event) -> Option<Event> + 'static,
 {
     _grab(callback)
+}
+
+pub async fn grab_async<T, F>(callback: F) -> Result<(), GrabError>
+where
+  F: Fn(Event) -> T + Send + 'static,
+  T: Future<Output=Option<Event>> + Send + 'static,
+{
+    _grab_async(callback).await
 }
 
 #[cfg(test)]
