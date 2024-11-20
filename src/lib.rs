@@ -357,11 +357,11 @@ pub use crate::windows::grab as _grab;
 /// }
 /// ```
 #[cfg(feature = "unstable_grab")]
-pub fn grab<T>(callback: T) -> Result<(), GrabError>
+pub fn grab<T, S>(callback: T, mut state: S) -> Result<(), GrabError>
 where
-    T: Fn(Event) -> Option<Event> + 'static,
+    T: Fn(Event, &mut S) -> Option<Event> + 'static,
 {
-    _grab(callback)
+    _grab(callback, state)
 }
 
 #[cfg(test)]

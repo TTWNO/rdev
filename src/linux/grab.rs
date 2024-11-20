@@ -301,9 +301,9 @@ fn evdev_event_to_rdev_event(
 //     }
 // }
 
-pub fn grab<T>(callback: T) -> Result<(), GrabError>
+pub fn grab<T, S>(callback: T, mut state: S) -> Result<(), GrabError>
 where
-    T: Fn(Event) -> Option<Event> + 'static,
+    T: Fn(Event, &mut S) -> Option<Event> + 'static,
 {
     let mut kb = Keyboard::new().ok_or(GrabError::KeyboardError)?;
     let display = Display::new().ok_or(GrabError::MissingDisplayError)?;
@@ -327,7 +327,7 @@ where
             name,
             event_type,
         };
-        if callback(rdev_event).is_some() {
+        if callback(rdev_event, &mut state).is_some() {
             (Some(event), GrabStatus::Continue)
         } else {
             // callback returns None, swallow the event
