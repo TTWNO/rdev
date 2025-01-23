@@ -359,11 +359,11 @@ use std::future::Future;
 /// }
 /// ```
 #[cfg(feature = "unstable_grab")]
-pub fn grab<T>(callback: T) -> Result<(), GrabError>
+pub fn grab<T, S>(callback: T, state: S) -> Result<(), GrabError>
 where
-    T: Fn(Event) -> Option<Event> + 'static,
+    T: Fn(Event, &mut S) -> Option<Event> + 'static,
 {
-    _grab(callback)
+    _grab(callback, state)
 }
 
 pub async fn grab_async<T, F>(callback: F) -> Result<(), GrabError>
